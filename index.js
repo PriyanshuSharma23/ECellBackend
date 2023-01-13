@@ -49,8 +49,6 @@ app.get("/", (req, res) => {
 app.use("/", authRouter);
 
 function authenticate(req, res, next) {
-  console.log(req.session.user);
-
   if (req.session.user) {
     next();
   } else {

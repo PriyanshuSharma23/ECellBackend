@@ -6,20 +6,6 @@ const { db } = require("../db");
 const todoRouter = Router();
 
 todoRouter.get("/", (req, res) => {
-  // select all todos
-  // db.all(
-  //   `SELECT * FROM todos WHERE user_id = ${req.session.id}`,
-  //   (err, rows) => {
-  //     if (err) {
-  //       console.log(err);
-  //       return res.sendStatus(500);
-  //     }
-
-  //     res.send(rows);
-  //   }
-  // );
-
-  // select all todos with user_id == req.session.id
   db.all(
     `SELECT * FROM todos WHERE user_id = ?`,
     [req.session.id],
@@ -28,17 +14,37 @@ todoRouter.get("/", (req, res) => {
         console.log(err);
         return res.sendStatus(500);
       }
-
       res.send(rows);
     }
   );
 });
 
+todoRouter.get("/:id", (req, res) => {
+  db.get(`SELECT * FROM todos WHERE id = ?`, [req.params.id], (err, row) => {
+    if (err) {
+      console.log(err);
+      return res.sendStatus(500);
+    }
+
+    let todo = row;
+
+    if (!todo) {
+      return res.sendStatus(404);
+    }
+
+    if (todo.user_id !== req.session.id) {
+      return res.sendStatus(401);
+    }
+
+    res.send(todo);
+  });
+});
+
 todoRouter.post("/", (req, res) => {
   // insert a todo
   db.run(
-    "INSERT INTO todos (title, completed) VALUES (?, ?)",
-    [req.body.title, req.body.completed],
+    "INSERT INTO todos (title, completed, user_id) VALUES (?, ?, ?)",
+    [req.body.title, req.body.completed, req.session.id],
     function (err) {
       if (err) {
         console.log(err);
@@ -50,20 +56,36 @@ todoRouter.post("/", (req, res) => {
   res.sendStatus(200);
 });
 
-todoRouter.put("/:id", (req, res) => {
-  // update a todo
-  db.run(
-    "UPDATE todos SET title = ?, completed = ? WHERE id = ?",
-    [req.body.title, req.body.completed, req.params.id],
-    function (err) {
-      if (err) {
-        console.log(err);
-        return res.sendStatus(500);
-      }
+todoRouter.put("/:id", async (req, res) => {
+  db.get(`SELECT * FROM todos WHERE id = ?`, [req.params.id], (err, row) => {
+    if (err) {
+      console.log(err);
+      return res.sendStatus(500);
     }
-  );
 
-  res.sendStatus(200);
+    let todo = row;
+
+    if (todo.user_id !== req.session.id) {
+      return res.sendStatus(401);
+    }
+
+    let completed = req.body.completed ?? todo.completed;
+    let title = req.body.title ?? todo.title;
+
+    // update a todo
+    db.run(
+      "UPDATE todos SET title = ?, completed = ? WHERE id = ?",
+      [title, completed, req.params.id],
+      function (err) {
+        if (err) {
+          console.log(err);
+          return res.sendStatus(500);
+        }
+      }
+    );
+
+    res.sendStatus(200);
+  });
 });
 
 todoRouter.delete("/:id", (req, res) => {
